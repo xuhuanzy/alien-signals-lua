@@ -335,15 +335,6 @@ end
 
 ---创建响应式系统
 ---@param config {update: (fun(sub: ReactiveNode): boolean), notify: fun(sub: ReactiveNode), unwatched: fun(sub: ReactiveNode)}
----@return {
---- link: fun(dep: ReactiveNode, sub: ReactiveNode),
---- unlink: (fun(link: Link, sub?: ReactiveNode): Link?),
---- propagate: fun(link: Link),
---- checkDirty: (fun(link: Link, sub: ReactiveNode): boolean),
---- endTracking: fun(sub: ReactiveNode),
---- startTracking: fun(sub: ReactiveNode),
---- shallowPropagate: fun(link: Link)
----}
 local function createReactiveSystem(config)
     local update = config.update
     local notify = config.notify
@@ -360,19 +351,16 @@ local function createReactiveSystem(config)
         notify = notify,
         unwatched = unwatched,
     }
-
-    return {
-        link = link,
-        unlink = unlink,
-        propagate = propagate,
-        checkDirty = checkDirty,
-        endTracking = endTracking,
-        startTracking = startTracking,
-        shallowPropagate = shallowPropagate,
-    }
 end
 
 return {
     ReactiveFlags = ReactiveFlags,
     createReactiveSystem = createReactiveSystem,
+    link = link,
+    unlink = unlink,
+    propagate = propagate,
+    checkDirty = checkDirty,
+    endTracking = endTracking,
+    startTracking = startTracking,
+    shallowPropagate = shallowPropagate,
 }

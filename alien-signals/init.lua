@@ -4,6 +4,13 @@
 local system = require('alien-signals.system')
 local ReactiveFlags = system.ReactiveFlags
 local createReactiveSystem = system.createReactiveSystem
+local link = system.link
+local unlink = system.unlink
+local propagate = system.propagate
+local checkDirty = system.checkDirty
+local endTracking = system.endTracking
+local startTracking = system.startTracking
+local shallowPropagate = system.shallowPropagate
 
 ---@enum EffectFlags
 local EffectFlags = {
@@ -54,9 +61,7 @@ local function notify(e)
 end
 
 -- 创建响应式系统
-local reactiveSystem
-
-reactiveSystem = createReactiveSystem({
+createReactiveSystem({
     ---@param signal Signal|Computed
     ---@return boolean
     update = function(signal)
@@ -74,7 +79,7 @@ reactiveSystem = createReactiveSystem({
             if toRemove ~= nil then
                 node.flags = 17 -- ReactiveFlags.Mutable | ReactiveFlags.Dirty
                 repeat
-                    toRemove = reactiveSystem.unlink(toRemove, node)
+                    toRemove = unlink(toRemove, node)
                 until toRemove == nil
             end
         elseif not node.previousValue then
@@ -83,15 +88,7 @@ reactiveSystem = createReactiveSystem({
     end,
 })
 
-local link = reactiveSystem.link
-local unlink = reactiveSystem.unlink
-local propagate = reactiveSystem.propagate
-local checkDirty = reactiveSystem.checkDirty
-local endTracking = reactiveSystem.endTracking
-local startTracking = reactiveSystem.startTracking
-local shallowPropagate = reactiveSystem.shallowPropagate
 
--- 导出的 API 函数
 
 ---获取当前订阅者
 ---@return ReactiveNode?
@@ -244,18 +241,22 @@ end
 
 -- 内部实现函数
 
+---@param c Computed
+---@return boolean
+local function updateComputedPcall(c)
+    local oldValue = c.value
+    local newValue = c.getter(oldValue)
+    c.value = newValue
+    return oldValue ~= newValue
+end
+
 ---更新计算属性
 ---@param c Computed
 ---@return boolean
 updateComputed = function(c)
     local prevSub = setCurrentSub(c)
     startTracking(c)
-    local success, result = pcall(function()
-        local oldValue = c.value
-        local newValue = c.getter(oldValue)
-        c.value = newValue
-        return oldValue ~= newValue
-    end)
+    local success, result = pcall(updateComputedPcall, c)
     setCurrentSub(prevSub)
     endTracking(c)
 
@@ -279,6 +280,13 @@ updateSignal = function(s, value)
     return changed
 end
 
+---@param e Effect | EffectScope
+local function runPcall(e)
+    if e.fn then
+        e.fn()
+    end
+end
+
 ---运行副作用
 ---@param e Effect | EffectScope
 ---@param flags ReactiveFlags
@@ -287,11 +295,7 @@ run = function(e, flags)
         ((flags & ReactiveFlags.Pending) ~= 0 and e.deps and checkDirty(e.deps, e)) then
         local prev = setCurrentSub(e)
         startTracking(e)
-        local success, err = pcall(function()
-            if e.fn then
-                e.fn()
-            end
-        end)
+        local success, err = pcall(runPcall, e)
         setCurrentSub(prev)
         endTracking(e)
 
