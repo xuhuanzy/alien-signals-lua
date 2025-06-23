@@ -291,8 +291,9 @@ end
 ---@param e Effect | EffectScope
 ---@param flags ReactiveFlags
 run = function(e, flags)
+    ---@cast e.deps -?
     if (flags & ReactiveFlags.Dirty) ~= 0 or
-        ((flags & ReactiveFlags.Pending) ~= 0 and e.deps and checkDirty(e.deps, e)) then
+        ((flags & ReactiveFlags.Pending) ~= 0 and checkDirty(e.deps, e)) then
         local prev = setCurrentSub(e)
         startTracking(e)
         local success, err = pcall(runPcall, e)
@@ -315,6 +316,7 @@ run = function(e, flags)
             run(dep, dep.flags & (~EffectFlags.Queued))
             dep.flags = dep.flags & (~EffectFlags.Queued)
         end
+        ---@cast link.nextDep -?
         link = link.nextDep
     end
 end
@@ -339,8 +341,9 @@ end
 ---@return any
 computedOper = function(self)
     local flags = self.flags
+    ---@cast self.deps -?
     if (flags & ReactiveFlags.Dirty) ~= 0 or
-        ((flags & ReactiveFlags.Pending) ~= 0 and self.deps and checkDirty(self.deps, self)) then
+        ((flags & ReactiveFlags.Pending) ~= 0 and checkDirty(self.deps, self)) then
         if updateComputed(self) then
             local subs = self.subs
             if subs ~= nil then

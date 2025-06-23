@@ -39,16 +39,18 @@ local ReactiveFlags = {
 local function isValidLink(checkLink, sub)
     local depsTail = sub.depsTail
     if depsTail ~= nil then
+        ---@cast sub.deps -?
         local linkNode = sub.deps
-        while linkNode ~= nil do
+        repeat
             if linkNode == checkLink then
                 return true
             end
             if linkNode == depsTail then
                 break
             end
+            ---@cast linkNode.nextDep -?
             linkNode = linkNode.nextDep
-        end
+        until (linkNode == nil)
     end
     return false
 end
@@ -294,18 +296,13 @@ local function checkDirty(link, sub)
 
         while checkDepth > 0 do
             checkDepth = checkDepth - 1
+            ---@cast sub.subs -?
             local firstSub = sub.subs
-            if firstSub == nil then
-                break
-            end
             local hasMultipleSubs = firstSub.nextSub ~= nil
             if hasMultipleSubs then
-                if stack ~= nil then
-                    link = stack.value
-                    stack = stack.prev
-                else
-                    link = firstSub
-                end
+                ---@cast stack -?
+                link = stack.value
+                stack = stack.prev
             else
                 link = firstSub
             end
