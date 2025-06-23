@@ -65,5 +65,4 @@ test('should dispose inner effects if created in an effect', function()
     end)
 end)
 
--- 运行所有测试
 testPrintStats()

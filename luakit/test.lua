@@ -8,6 +8,7 @@ TestFramework.__index = TestFramework
 
 ---@class ExpectObject
 ---@field value any
+---@field isNot boolean
 local ExpectObject = {}
 ExpectObject.__index = ExpectObject
 
@@ -24,7 +25,8 @@ local stats = {
 ---@return ExpectObject
 function TestFramework.expect(value)
     local obj = setmetatable({
-        value = value
+        value = value,
+        isNot = false -- 添加标志量
     }, ExpectObject)
     return obj
 end
@@ -33,10 +35,21 @@ end
 ---@param expected any
 ---@return boolean
 function ExpectObject:toBe(expected)
-    if self.value == expected then
+    local result = self.value == expected
+
+    -- 根据 isNot 标志决定是否取反
+    if self.isNot then
+        result = not result
+    end
+
+    if result then
         return true
     else
-        error(string.format("Expected %s to be %s", tostring(self.value), tostring(expected)))
+        if self.isNot then
+            error(string.format("Expected %s not to be %s", tostring(self.value), tostring(expected)))
+        else
+            error(string.format("Expected %s to be %s", tostring(self.value), tostring(expected)))
+        end
     end
 end
 
@@ -44,10 +57,21 @@ end
 ---@param expected any
 ---@return boolean
 function ExpectObject:notToBe(expected)
-    if self.value ~= expected then
+    local result = self.value ~= expected
+
+    -- 根据 isNot 标志决定是否取反
+    if self.isNot then
+        result = not result
+    end
+
+    if result then
         return true
     else
-        error(string.format("Expected %s not to be %s", tostring(self.value), tostring(expected)))
+        if self.isNot then
+            error(string.format("Expected %s to be %s", tostring(self.value), tostring(expected)))
+        else
+            error(string.format("Expected %s not to be %s", tostring(self.value), tostring(expected)))
+        end
     end
 end
 
@@ -97,10 +121,21 @@ end
 ---@param expected any
 ---@return boolean
 function ExpectObject:toEqual(expected)
-    if deepEqual(self.value, expected) then
+    local result = deepEqual(self.value, expected)
+
+    -- 根据 isNot 标志决定是否取反
+    if self.isNot then
+        result = not result
+    end
+
+    if result then
         return true
     else
-        error(string.format("Expected %s to equal %s", tostring(self.value), tostring(expected)))
+        if self.isNot then
+            error(string.format("Expected %s not to equal %s", tostring(self.value), tostring(expected)))
+        else
+            error(string.format("Expected %s to equal %s", tostring(self.value), tostring(expected)))
+        end
     end
 end
 
@@ -113,11 +148,21 @@ function ExpectObject:toThrow(expectedMessage)
     end
 
     local success, err = pcall(self.value)
-    if success then
-        error("Expected function to throw an error, but it didn't")
+    local didThrow = not success
+
+    -- 根据 isNot 标志决定是否取反
+    local result = self.isNot and not didThrow or not self.isNot and didThrow
+
+    if not result then
+        if self.isNot then
+            error("Expected function not to throw an error, but it did")
+        else
+            error("Expected function to throw an error, but it didn't")
+        end
     end
 
-    if expectedMessage and not string.find(tostring(err), expectedMessage, 1, true) then
+    -- 如果期望抛出错误且确实抛出了，检查错误消息
+    if didThrow and not self.isNot and expectedMessage and not string.find(tostring(err), expectedMessage, 1, true) then
         error(string.format("Expected function to throw error containing '%s', but got '%s'", expectedMessage,
             tostring(err)))
     end
@@ -125,29 +170,41 @@ function ExpectObject:toThrow(expectedMessage)
     return true
 end
 
----获取 not 版本的 expectObject
----@return table
-function ExpectObject:not_()
-    local notObj = {}
-    setmetatable(notObj, {
-        __index = function(_, key)
-            if key == "toHaveBeenCalled" then
-                return function()
-                    if self.value.calls and self.value.calls > 0 then
-                        error(string.format("Expected function to not have been called, but it was called %d times",
-                            self.value.calls))
-                    end
-                    return true
-                end
-            end
-            -- 可以添加更多 not 版本的断言
-            return function()
-                error("Not implemented: not." .. key)
-            end
+---检查函数是否被调用过
+---@return boolean
+function ExpectObject:toHaveBeenCalled()
+    -- 检查 value 是否有 calls 属性来判断调用次数
+    local calls = 0
+    if type(self.value) == "table" and self.value.calls then
+        calls = self.value.calls
+    elseif type(self.value) == "function" then
+        calls = self.value()
+    else
+        -- 如果没有 calls 属性，则认为未被调用
+        calls = 0
+    end
+
+    local wasCalled = calls > 0
+
+    -- 根据 isNot 标志决定是否取反
+    local result = self.isNot and not wasCalled or not self.isNot and wasCalled
+
+    if result then
+        return true
+    else
+        if self.isNot then
+            error(string.format("Expected function not to have been called, but it was called %d times", calls))
+        else
+            error("Expected function to have been called, but it was not called")
         end
-    })
-    ---@diagnostic disable-next-line: return-type-mismatch
-    return notObj
+    end
+end
+
+---反转期望
+---@return ExpectObject
+function ExpectObject:not_()
+    self.isNot = true
+    return self
 end
 
 ---运行测试用例

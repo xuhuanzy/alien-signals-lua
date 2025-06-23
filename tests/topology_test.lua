@@ -43,7 +43,6 @@ test('should drop A->B->A updates', function()
     local compute = vi.fn(function()
         return "d: " .. c()
     end)
-    ---@diagnostic disable-next-line: param-type-not-match
     local d = computed(compute)
 
     -- Trigger read
@@ -438,5 +437,4 @@ test('should keep graph consistent on errors in computeds', function()
     expect(c()):toBe(2)
 end)
 
--- 运行所有测试
 testPrintStats()

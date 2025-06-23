@@ -307,5 +307,4 @@ test('should handle flags are indirectly updated during checkDirty', function()
     expect(triggers):toBe(2)
 end)
 
--- 运行所有测试
 testPrintStats()

@@ -126,5 +126,4 @@ test('#48', function()
     source(3)
 end)
 
--- 运行所有测试
 testPrintStats()

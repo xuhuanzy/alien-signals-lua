@@ -94,5 +94,4 @@ test('should not update if the signal value is reverted', function()
     expect(times):toBe(1)
 end)
 
--- 运行所有测试
 testPrintStats()
