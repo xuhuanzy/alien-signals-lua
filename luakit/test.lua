@@ -1,3 +1,5 @@
+---@namespace Luakit
+
 ---简单的 Lua 测试库
 ---@class TestFramework
 
@@ -57,37 +59,37 @@ local function deepEqual(a, b)
     if type(a) ~= type(b) then
         return false
     end
-    
+
     if type(a) ~= "table" then
         return a == b
     end
-    
+
     -- 比较数组长度
     local lenA, lenB = #a, #b
     if lenA ~= lenB then
         return false
     end
-    
+
     -- 比较数组元素
     for i = 1, lenA do
         if not deepEqual(a[i], b[i]) then
             return false
         end
     end
-    
+
     -- 比较表的键值对
     for k, v in pairs(a) do
         if not deepEqual(v, b[k]) then
             return false
         end
     end
-    
+
     for k, v in pairs(b) do
         if a[k] == nil then
             return false
         end
     end
-    
+
     return true
 end
 
@@ -100,6 +102,52 @@ function ExpectObject:toEqual(expected)
     else
         error(string.format("Expected %s to equal %s", tostring(self.value), tostring(expected)))
     end
+end
+
+---检查函数是否抛出错误
+---@param expectedMessage? string 可选的错误消息
+---@return boolean
+function ExpectObject:toThrow(expectedMessage)
+    if type(self.value) ~= "function" then
+        error("Expected value to be a function")
+    end
+
+    local success, err = pcall(self.value)
+    if success then
+        error("Expected function to throw an error, but it didn't")
+    end
+
+    if expectedMessage and not string.find(tostring(err), expectedMessage, 1, true) then
+        error(string.format("Expected function to throw error containing '%s', but got '%s'", expectedMessage,
+            tostring(err)))
+    end
+
+    return true
+end
+
+---获取 not 版本的 expectObject
+---@return table
+function ExpectObject:not_()
+    local notObj = {}
+    setmetatable(notObj, {
+        __index = function(_, key)
+            if key == "toHaveBeenCalled" then
+                return function()
+                    if self.value.calls and self.value.calls > 0 then
+                        error(string.format("Expected function to not have been called, but it was called %d times",
+                            self.value.calls))
+                    end
+                    return true
+                end
+            end
+            -- 可以添加更多 not 版本的断言
+            return function()
+                error("Not implemented: not." .. key)
+            end
+        end
+    })
+    ---@diagnostic disable-next-line: return-type-mismatch
+    return notObj
 end
 
 ---运行测试用例

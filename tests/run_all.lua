@@ -1,0 +1,6 @@
+require('tests.computed_test')
+require('tests.effect_test')
+require('tests.effectScope_test')
+require('tests.issue_48_test')
+require('tests.topology_test')
+require('tests.untrack_test')
