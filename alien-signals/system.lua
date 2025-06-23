@@ -62,9 +62,9 @@ local function shallowPropagate(linkNode)
         local sub = linkNode.sub
         local nextSub = linkNode.nextSub
         local subFlags = sub.flags
-        if (subFlags & (ReactiveFlags.Pending | ReactiveFlags.Dirty)) == ReactiveFlags.Pending then
-            sub.flags = subFlags | ReactiveFlags.Dirty
-            if (subFlags & ReactiveFlags.Watching) ~= 0 then
+        if (subFlags & 48) == 32 then -- (ReactiveFlags.Pending | ReactiveFlags.Dirty) == ReactiveFlags.Pending
+            sub.flags = subFlags | 16 -- ReactiveFlags.Dirty
+            if (subFlags & 2) ~= 0 then -- ReactiveFlags.Watching
                 notify(sub)
             end
         end
@@ -83,7 +83,7 @@ local function link(dep, sub)
     end
 
     local nextDep = nil
-    local recursedCheck = sub.flags & ReactiveFlags.RecursedCheck
+    local recursedCheck = sub.flags & 4 -- ReactiveFlags.RecursedCheck
     if recursedCheck ~= 0 then
         if prevDep ~= nil then
             nextDep = prevDep.nextDep
@@ -133,7 +133,6 @@ end
 ---@param sub? ReactiveNode
 ---@return Link?
 local function unlink(link, sub)
-    local unwatched = systemConfig.unwatched
     sub = sub or link.sub
     local dep = link.dep
     local prevDep = link.prevDep
@@ -161,7 +160,7 @@ local function unlink(link, sub)
     else
         dep.subs = nextSub
         if dep.subs == nil then
-            unwatched(dep)
+            systemConfig.unwatched(dep)
         end
     end
     return nextDep
@@ -177,25 +176,25 @@ local function propagate(link)
         local sub = link.sub
         local flags = sub.flags
 
-        if (flags & (ReactiveFlags.Mutable | ReactiveFlags.Watching)) ~= 0 then
-            if (flags & (ReactiveFlags.RecursedCheck | ReactiveFlags.Recursed | ReactiveFlags.Dirty | ReactiveFlags.Pending)) == 0 then
-                sub.flags = flags | ReactiveFlags.Pending
-            elseif (flags & (ReactiveFlags.RecursedCheck | ReactiveFlags.Recursed)) == 0 then
-                flags = ReactiveFlags.None
-            elseif (flags & ReactiveFlags.RecursedCheck) == 0 then
-                sub.flags = (flags & (~ReactiveFlags.Recursed)) | ReactiveFlags.Pending
-            elseif (flags & (ReactiveFlags.Dirty | ReactiveFlags.Pending)) == 0 and isValidLink(link, sub) then
-                sub.flags = flags | (ReactiveFlags.Recursed | ReactiveFlags.Pending)
-                flags = flags & ReactiveFlags.Mutable
+        if (flags & 3) ~= 0 then -- (ReactiveFlags.Mutable | ReactiveFlags.Watching)
+            if (flags & 60) == 0 then -- (ReactiveFlags.RecursedCheck | ReactiveFlags.Recursed | ReactiveFlags.Dirty | ReactiveFlags.Pending)
+                sub.flags = flags | 32 -- ReactiveFlags.Pending
+            elseif (flags & 12) == 0 then -- (ReactiveFlags.RecursedCheck | ReactiveFlags.Recursed)
+                flags = 0 -- ReactiveFlags.None
+            elseif (flags & 4) == 0 then -- ReactiveFlags.RecursedCheck
+                sub.flags = (flags & (~8)) | 32 -- (~ReactiveFlags.Recursed) | ReactiveFlags.Pending
+            elseif (flags & 48) == 0 and isValidLink(link, sub) then -- (ReactiveFlags.Dirty | ReactiveFlags.Pending)
+                sub.flags = flags | 40 -- (ReactiveFlags.Recursed | ReactiveFlags.Pending)
+                flags = flags & 1 -- ReactiveFlags.Mutable
             else
-                flags = ReactiveFlags.None
+                flags = 0 -- ReactiveFlags.None
             end
 
-            if (flags & ReactiveFlags.Watching) ~= 0 then
+            if (flags & 2) ~= 0 then -- ReactiveFlags.Watching
                 notify(sub)
             end
 
-            if (flags & ReactiveFlags.Mutable) ~= 0 then
+            if (flags & 1) ~= 0 then -- ReactiveFlags.Mutable
                 local subSubs = sub.subs
                 if subSubs ~= nil then
                     link = subSubs
@@ -232,8 +231,8 @@ end
 ---@param sub ReactiveNode
 local function startTracking(sub)
     sub.depsTail = nil
-    sub.flags = (sub.flags & (~(ReactiveFlags.Recursed | ReactiveFlags.Dirty | ReactiveFlags.Pending))) |
-        ReactiveFlags.RecursedCheck
+    sub.flags = (sub.flags & (~56)) | -- (~(ReactiveFlags.Recursed | ReactiveFlags.Dirty | ReactiveFlags.Pending))
+        4 -- ReactiveFlags.RecursedCheck
 end
 
 ---@param sub ReactiveNode
@@ -248,7 +247,7 @@ local function endTracking(sub)
     while toRemove ~= nil do
         toRemove = unlink(toRemove, sub)
     end
-    sub.flags = sub.flags & (~ReactiveFlags.RecursedCheck)
+    sub.flags = sub.flags & (~4) -- (~ReactiveFlags.RecursedCheck)
 end
 
 
@@ -267,9 +266,9 @@ local function checkDirty(link, sub)
         local depFlags = dep.flags
         local dirty = false
 
-        if (sub.flags & ReactiveFlags.Dirty) ~= 0 then
+        if (sub.flags & 16) ~= 0 then -- ReactiveFlags.Dirty
             dirty = true
-        elseif (depFlags & (ReactiveFlags.Mutable | ReactiveFlags.Dirty)) == (ReactiveFlags.Mutable | ReactiveFlags.Dirty) then
+        elseif (depFlags & 17) == 17 then -- (ReactiveFlags.Mutable | ReactiveFlags.Dirty)
             if update(dep) then
                 local subs = dep.subs ---@cast subs -?
                 if subs.nextSub ~= nil then
@@ -277,7 +276,7 @@ local function checkDirty(link, sub)
                 end
                 dirty = true
             end
-        elseif (depFlags & (ReactiveFlags.Mutable | ReactiveFlags.Pending)) == (ReactiveFlags.Mutable | ReactiveFlags.Pending) then
+        elseif (depFlags & 33) == 33 then -- (ReactiveFlags.Mutable | ReactiveFlags.Pending)
             if link.nextSub ~= nil or link.prevSub ~= nil then
                 stack = { value = link, prev = stack } ---@as Stack<Link>?
             end
@@ -315,7 +314,7 @@ local function checkDirty(link, sub)
                     goto continue_depth
                 end
             else
-                sub.flags = sub.flags & (~ReactiveFlags.Pending)
+                sub.flags = sub.flags & (~32) -- (~ReactiveFlags.Pending)
             end
             sub = link.sub
             if link.nextDep ~= nil then

@@ -48,8 +48,8 @@ local computedOper, signalOper, effectOper
 ---@param e Effect | EffectScope
 local function notify(e)
     local flags = e.flags
-    if (flags & EffectFlags.Queued) == 0 then
-        e.flags = flags | EffectFlags.Queued
+    if (flags & 64) == 0 then -- EffectFlags.Queued
+        e.flags = flags | 64 -- EffectFlags.Queued
         local subs = e.subs
         if subs ~= nil then
             notify(subs.sub)
@@ -144,7 +144,7 @@ local function signal(initialValue)
         value = initialValue,
         subs = nil,
         subsTail = nil,
-        flags = ReactiveFlags.Mutable,
+        flags = 1, -- ReactiveFlags.Mutable
     }
 
     return function(...)
@@ -185,7 +185,7 @@ local function effect(fn)
         subsTail = nil,
         deps = nil,
         depsTail = nil,
-        flags = ReactiveFlags.Watching,
+        flags = 2, -- ReactiveFlags.Watching
     }
 
     if activeSub ~= nil then
@@ -217,7 +217,7 @@ local function effectScope(fn)
         depsTail = nil,
         subs = nil,
         subsTail = nil,
-        flags = ReactiveFlags.None,
+        flags = 0, -- ReactiveFlags.None
     }
 
     if activeScope ~= nil then
@@ -272,7 +272,7 @@ end
 ---@param value any
 ---@return boolean
 updateSignal = function(s, value)
-    s.flags = ReactiveFlags.Mutable
+    s.flags = 1 -- ReactiveFlags.Mutable
     local changed = s.previousValue ~= value
     if changed then
         s.previousValue = value
@@ -292,8 +292,8 @@ end
 ---@param flags ReactiveFlags
 run = function(e, flags)
     ---@cast e.deps -?
-    if (flags & ReactiveFlags.Dirty) ~= 0 or
-        ((flags & ReactiveFlags.Pending) ~= 0 and checkDirty(e.deps, e)) then
+    if (flags & 16) ~= 0 or -- ReactiveFlags.Dirty
+        ((flags & 32) ~= 0 and checkDirty(e.deps, e)) then -- ReactiveFlags.Pending
         local prev = setCurrentSub(e)
         startTracking(e)
         local success, err = pcall(runPcall, e)
@@ -304,17 +304,17 @@ run = function(e, flags)
             error(err)
         end
         return
-    elseif (flags & ReactiveFlags.Pending) ~= 0 then
-        e.flags = flags & (~ReactiveFlags.Pending)
+    elseif (flags & 32) ~= 0 then -- ReactiveFlags.Pending
+        e.flags = flags & (~32) -- (~ReactiveFlags.Pending)
     end
 
     local link = e.deps
     while link ~= nil do
         local dep = link.dep
         local depFlags = dep.flags
-        if (depFlags & EffectFlags.Queued) ~= 0 then
-            run(dep, dep.flags & (~EffectFlags.Queued))
-            dep.flags = dep.flags & (~EffectFlags.Queued)
+        if (depFlags & 64) ~= 0 then -- EffectFlags.Queued
+            run(dep, dep.flags & (~64)) -- (~EffectFlags.Queued)
+            dep.flags = dep.flags & (~64) -- (~EffectFlags.Queued)
         end
         ---@cast link.nextDep -?
         link = link.nextDep
@@ -328,8 +328,8 @@ flush = function()
         local effect = queuedEffects[notifyIndex]
         queuedEffects[notifyIndex] = nil
         if effect then
-            run(effect, effect.flags & (~EffectFlags.Queued))
-            effect.flags = effect.flags & (~EffectFlags.Queued)
+            run(effect, effect.flags & (~64)) -- (~EffectFlags.Queued)
+            effect.flags = effect.flags & (~64) -- (~EffectFlags.Queued)
         end
     end
     notifyIndex = 0
@@ -342,16 +342,16 @@ end
 computedOper = function(self)
     local flags = self.flags
     ---@cast self.deps -?
-    if (flags & ReactiveFlags.Dirty) ~= 0 or
-        ((flags & ReactiveFlags.Pending) ~= 0 and checkDirty(self.deps, self)) then
+    if (flags & 16) ~= 0 or -- ReactiveFlags.Dirty
+        ((flags & 32) ~= 0 and checkDirty(self.deps, self)) then -- ReactiveFlags.Pending
         if updateComputed(self) then
             local subs = self.subs
             if subs ~= nil then
                 shallowPropagate(subs)
             end
         end
-    elseif (flags & ReactiveFlags.Pending) ~= 0 then
-        self.flags = flags & (~ReactiveFlags.Pending)
+    elseif (flags & 32) ~= 0 then -- ReactiveFlags.Pending
+        self.flags = flags & (~32) -- (~ReactiveFlags.Pending)
     end
 
     if activeSub ~= nil then
@@ -372,7 +372,7 @@ signalOper = function(self, newValue)
         -- 设置值
         if self.value ~= newValue then
             self.value = newValue
-            self.flags = ReactiveFlags.Mutable | ReactiveFlags.Dirty
+            self.flags = 17 -- ReactiveFlags.Mutable | ReactiveFlags.Dirty
             local subs = self.subs
             if subs ~= nil then
                 propagate(subs)
@@ -384,7 +384,7 @@ signalOper = function(self, newValue)
     else
         -- 获取值
         local value = self.value
-        if (self.flags & ReactiveFlags.Dirty) ~= 0 then
+        if (self.flags & 16) ~= 0 then -- ReactiveFlags.Dirty
             if updateSignal(self, value) then
                 local subs = self.subs
                 if subs ~= nil then
@@ -414,7 +414,7 @@ effectOper = function(self)
         unlink(sub)
     end
 
-    self.flags = ReactiveFlags.None
+    self.flags = 0 -- ReactiveFlags.None
 end
 
 -- 导出模块
