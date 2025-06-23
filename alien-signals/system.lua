@@ -259,8 +259,8 @@ local function checkDirty(link, sub)
     local stack = nil ---@type Stack<Link>?
     local checkDepth = 0
 
-    ::continue::
     while true do
+        ::top::
         local dep = link.dep
         local depFlags = dep.flags
         local dirty = false
@@ -269,8 +269,8 @@ local function checkDirty(link, sub)
             dirty = true
         elseif (depFlags & (ReactiveFlags.Mutable | ReactiveFlags.Dirty)) == (ReactiveFlags.Mutable | ReactiveFlags.Dirty) then
             if update(dep) then
-                local subs = dep.subs
-                if subs ~= nil and subs.nextSub ~= nil then
+                local subs = dep.subs ---@cast subs -?
+                if subs.nextSub ~= nil then
                     shallowPropagate(subs)
                 end
                 dirty = true
@@ -279,18 +279,18 @@ local function checkDirty(link, sub)
             if link.nextSub ~= nil or link.prevSub ~= nil then
                 stack = { value = link, prev = stack } ---@as Stack<Link>?
             end
-            if dep.deps ~= nil then
-                link = dep.deps
-                sub = dep
-                checkDepth = checkDepth + 1
-                goto continue
-            end
+            ---@cast dep.deps -?
+            link = dep.deps
+            sub = dep
+            checkDepth = checkDepth + 1
+            goto top
         end
 
         if not dirty and link ~= nil and link.nextDep ~= nil then
             link = link.nextDep
-            goto continue
+            goto top
         end
+
 
         while checkDepth > 0 do
             checkDepth = checkDepth - 1
@@ -315,7 +315,7 @@ local function checkDirty(link, sub)
                         shallowPropagate(firstSub)
                     end
                     sub = link.sub
-                    goto continue
+                    goto continue_depth
                 end
             else
                 sub.flags = sub.flags & (~ReactiveFlags.Pending)
@@ -323,9 +323,10 @@ local function checkDirty(link, sub)
             sub = link.sub
             if link.nextDep ~= nil then
                 link = link.nextDep
-                goto continue
+                goto top
             end
             dirty = false
+            ::continue_depth::
         end
 
         return dirty

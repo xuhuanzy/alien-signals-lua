@@ -362,13 +362,11 @@ end
 
 ---信号操作函数
 ---@param self Signal
----@param ... any
+---@param newValue any
 ---@return any?
-signalOper = function(self, ...)
-    local args = { ... }
-    if #args > 0 then
+signalOper = function(self, newValue)
+    if newValue then
         -- 设置值
-        local newValue = args[1]
         if self.value ~= newValue then
             self.value = newValue
             self.flags = ReactiveFlags.Mutable | ReactiveFlags.Dirty
@@ -401,19 +399,19 @@ signalOper = function(self, ...)
 end
 
 ---副作用操作函数
----@param this Effect | EffectScope
-effectOper = function(this)
-    local dep = this.deps
+---@param self Effect | EffectScope
+effectOper = function(self)
+    local dep = self.deps
     while dep ~= nil do
-        dep = unlink(dep, this)
+        dep = unlink(dep, self)
     end
 
-    local sub = this.subs
+    local sub = self.subs
     if sub ~= nil then
         unlink(sub)
     end
 
-    this.flags = ReactiveFlags.None
+    self.flags = ReactiveFlags.None
 end
 
 -- 导出模块
