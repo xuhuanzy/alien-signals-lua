@@ -37,7 +37,7 @@ end)
 
 -- 测试2: 应该通过链式计算传播更新的源值
 test('should propagate updated source value through chained computations', function()
-    local src = signal(0)
+    local src = signal(0--[[@as int]]) 
     local a = computed(function()
         return src()
     end)
