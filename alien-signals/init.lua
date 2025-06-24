@@ -49,7 +49,7 @@ local computedOper, signalOper, effectOper
 local function notify(e)
     local flags = e.flags
     if (flags & 64) == 0 then -- EffectFlags.Queued
-        e.flags = flags | 64 -- EffectFlags.Queued
+        e.flags = flags | 64  -- EffectFlags.Queued
         local subs = e.subs
         if subs ~= nil then
             notify(subs.sub)
@@ -133,7 +133,13 @@ local function endBatch()
     end
 end
 
--- Signal 创建函数
+---@type std.metatable
+local signal_meta = {
+    __call = function(signalNode, ...)
+        return signalOper(signalNode, ...)
+    end
+}
+
 ---创建信号
 ---@generic T
 ---@param initialValue? T
@@ -147,10 +153,15 @@ local function signal(initialValue)
         flags = 1, -- ReactiveFlags.Mutable
     }
 
-    return function(...)
-        return signalOper(signalNode, ...)
-    end
+    return setmetatable(signalNode, signal_meta)
 end
+
+---@type std.metatable
+local computed_meta = {
+    __call = function(computedNode)
+        return computedOper(computedNode)
+    end
+}
 
 -- Computed 创建函数
 ---创建计算属性
@@ -168,10 +179,15 @@ local function computed(getter)
         getter = getter,
     }
 
-    return function()
-        return computedOper(computedNode)
-    end
+    return setmetatable(computedNode, computed_meta)
 end
+
+---@type std.metatable
+local effect_meta = {
+    __call = function(effectNode)
+        return effectOper(effectNode)
+    end
+}
 
 -- Effect 创建函数
 ---创建副作用
@@ -202,9 +218,7 @@ local function effect(fn)
         error(err)
     end
 
-    return function()
-        return effectOper(effectNode)
-    end
+    return setmetatable(effectNode, effect_meta)
 end
 
 -- EffectScope 创建函数
@@ -234,9 +248,7 @@ local function effectScope(fn)
         error(err)
     end
 
-    return function()
-        return effectOper(scopeNode)
-    end
+    return setmetatable(scopeNode, effect_meta)
 end
 
 -- 内部实现函数
@@ -292,7 +304,7 @@ end
 ---@param flags ReactiveFlags
 run = function(e, flags)
     ---@cast e.deps -?
-    if (flags & 16) ~= 0 or -- ReactiveFlags.Dirty
+    if (flags & 16) ~= 0 or                                -- ReactiveFlags.Dirty
         ((flags & 32) ~= 0 and checkDirty(e.deps, e)) then -- ReactiveFlags.Pending
         local prev = setCurrentSub(e)
         startTracking(e)
@@ -305,15 +317,15 @@ run = function(e, flags)
         end
         return
     elseif (flags & 32) ~= 0 then -- ReactiveFlags.Pending
-        e.flags = flags & (~32) -- (~ReactiveFlags.Pending)
+        e.flags = flags & (~32)   -- (~ReactiveFlags.Pending)
     end
 
     local link = e.deps
     while link ~= nil do
         local dep = link.dep
         local depFlags = dep.flags
-        if (depFlags & 64) ~= 0 then -- EffectFlags.Queued
-            run(dep, dep.flags & (~64)) -- (~EffectFlags.Queued)
+        if (depFlags & 64) ~= 0 then      -- EffectFlags.Queued
+            run(dep, dep.flags & (~64))   -- (~EffectFlags.Queued)
             dep.flags = dep.flags & (~64) -- (~EffectFlags.Queued)
         end
         ---@cast link.nextDep -?
@@ -328,7 +340,7 @@ flush = function()
         local effect = queuedEffects[notifyIndex]
         queuedEffects[notifyIndex] = nil
         if effect then
-            run(effect, effect.flags & (~64)) -- (~EffectFlags.Queued)
+            run(effect, effect.flags & (~64))   -- (~EffectFlags.Queued)
             effect.flags = effect.flags & (~64) -- (~EffectFlags.Queued)
         end
     end
@@ -342,7 +354,7 @@ end
 computedOper = function(self)
     local flags = self.flags
     ---@cast self.deps -?
-    if (flags & 16) ~= 0 or -- ReactiveFlags.Dirty
+    if (flags & 16) ~= 0 or                                      -- ReactiveFlags.Dirty
         ((flags & 32) ~= 0 and checkDirty(self.deps, self)) then -- ReactiveFlags.Pending
         if updateComputed(self) then
             local subs = self.subs
@@ -350,7 +362,7 @@ computedOper = function(self)
                 shallowPropagate(subs)
             end
         end
-    elseif (flags & 32) ~= 0 then -- ReactiveFlags.Pending
+    elseif (flags & 32) ~= 0 then  -- ReactiveFlags.Pending
         self.flags = flags & (~32) -- (~ReactiveFlags.Pending)
     end
 
