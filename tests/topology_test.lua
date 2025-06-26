@@ -410,7 +410,9 @@ test('should keep graph consistent on errors during activation', function()
         return a()
     end)
 
-    expect(b):toThrow("fail")
+    expect(function()
+        b()
+    end):toThrow("fail")
 
     a(1)
     expect(c()):toBe(1)
@@ -431,7 +433,9 @@ test('should keep graph consistent on errors in computeds', function()
     expect(c()):toBe(0)
 
     a(1)
-    expect(b):toThrow("fail")
+    expect(function()
+        b()
+    end):toThrow("fail")
 
     a(2)
     expect(c()):toBe(2)
