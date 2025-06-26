@@ -19,8 +19,15 @@
 ---@field value T
 ---@field prev Stack<T>?
 
----@type {update: (fun(sub: ReactiveNode): boolean), notify: fun(sub: ReactiveNode), unwatched: fun(sub: ReactiveNode)}
-local systemConfig
+
+---@type fun(sub: ReactiveNode): boolean
+local SystemUpdate
+
+---@type fun(sub: ReactiveNode)
+local SystemNotify
+
+---@type fun(sub: ReactiveNode)
+local SystemUnwatched
 
 ---@enum ReactiveFlags
 local ReactiveFlags = {
@@ -57,15 +64,14 @@ end
 
 ---@param linkNode Link
 local function shallowPropagate(linkNode)
-    local notify = systemConfig.notify
     while linkNode ~= nil do
         local sub = linkNode.sub
         local nextSub = linkNode.nextSub
         local subFlags = sub.flags
-        if (subFlags & 48) == 32 then -- (ReactiveFlags.Pending | ReactiveFlags.Dirty) == ReactiveFlags.Pending
-            sub.flags = subFlags | 16 -- ReactiveFlags.Dirty
+        if (subFlags & 48) == 32 then   -- (ReactiveFlags.Pending | ReactiveFlags.Dirty) == ReactiveFlags.Pending
+            sub.flags = subFlags | 16   -- ReactiveFlags.Dirty
             if (subFlags & 2) ~= 0 then -- ReactiveFlags.Watching
-                notify(sub)
+                SystemNotify(sub)
             end
         end
         ---@cast nextSub -?
@@ -160,7 +166,7 @@ local function unlink(link, sub)
     else
         dep.subs = nextSub
         if dep.subs == nil then
-            systemConfig.unwatched(dep)
+            SystemUnwatched(dep)
         end
     end
     return nextDep
@@ -168,7 +174,6 @@ end
 
 ---@param link Link
 local function propagate(link)
-    local notify = systemConfig.notify
     local next = link.nextSub
     local stack = nil ---@type Stack<Link?>?
 
@@ -176,22 +181,22 @@ local function propagate(link)
         local sub = link.sub
         local flags = sub.flags
 
-        if (flags & 3) ~= 0 then -- (ReactiveFlags.Mutable | ReactiveFlags.Watching)
-            if (flags & 60) == 0 then -- (ReactiveFlags.RecursedCheck | ReactiveFlags.Recursed | ReactiveFlags.Dirty | ReactiveFlags.Pending)
-                sub.flags = flags | 32 -- ReactiveFlags.Pending
-            elseif (flags & 12) == 0 then -- (ReactiveFlags.RecursedCheck | ReactiveFlags.Recursed)
-                flags = 0 -- ReactiveFlags.None
-            elseif (flags & 4) == 0 then -- ReactiveFlags.RecursedCheck
-                sub.flags = (flags & (~8)) | 32 -- (~ReactiveFlags.Recursed) | ReactiveFlags.Pending
+        if (flags & 3) ~= 0 then                                     -- (ReactiveFlags.Mutable | ReactiveFlags.Watching)
+            if (flags & 60) == 0 then                                -- (ReactiveFlags.RecursedCheck | ReactiveFlags.Recursed | ReactiveFlags.Dirty | ReactiveFlags.Pending)
+                sub.flags = flags | 32                               -- ReactiveFlags.Pending
+            elseif (flags & 12) == 0 then                            -- (ReactiveFlags.RecursedCheck | ReactiveFlags.Recursed)
+                flags = 0                                            -- ReactiveFlags.None
+            elseif (flags & 4) == 0 then                             -- ReactiveFlags.RecursedCheck
+                sub.flags = (flags & (~8)) | 32                      -- (~ReactiveFlags.Recursed) | ReactiveFlags.Pending
             elseif (flags & 48) == 0 and isValidLink(link, sub) then -- (ReactiveFlags.Dirty | ReactiveFlags.Pending)
-                sub.flags = flags | 40 -- (ReactiveFlags.Recursed | ReactiveFlags.Pending)
-                flags = flags & 1 -- ReactiveFlags.Mutable
+                sub.flags = flags | 40                               -- (ReactiveFlags.Recursed | ReactiveFlags.Pending)
+                flags = flags & 1                                    -- ReactiveFlags.Mutable
             else
-                flags = 0 -- ReactiveFlags.None
+                flags = 0                                            -- ReactiveFlags.None
             end
 
             if (flags & 2) ~= 0 then -- ReactiveFlags.Watching
-                notify(sub)
+                SystemNotify(sub)
             end
 
             if (flags & 1) ~= 0 then -- ReactiveFlags.Mutable
@@ -232,7 +237,7 @@ end
 local function startTracking(sub)
     sub.depsTail = nil
     sub.flags = (sub.flags & (~56)) | -- (~(ReactiveFlags.Recursed | ReactiveFlags.Dirty | ReactiveFlags.Pending))
-        4 -- ReactiveFlags.RecursedCheck
+        4                             -- ReactiveFlags.RecursedCheck
 end
 
 ---@param sub ReactiveNode
@@ -255,8 +260,6 @@ end
 ---@param sub ReactiveNode
 ---@return boolean
 local function checkDirty(link, sub)
-    local update = systemConfig.update
-
     local stack = nil ---@type Stack<Link>?
     local checkDepth = 0
 
@@ -266,10 +269,10 @@ local function checkDirty(link, sub)
         local depFlags = dep.flags
         local dirty = false
 
-        if (sub.flags & 16) ~= 0 then -- ReactiveFlags.Dirty
+        if (sub.flags & 16) ~= 0 then     -- ReactiveFlags.Dirty
             dirty = true
         elseif (depFlags & 17) == 17 then -- (ReactiveFlags.Mutable | ReactiveFlags.Dirty)
-            if update(dep) then
+            if SystemUpdate(dep) then
                 local subs = dep.subs ---@cast subs -?
                 if subs.nextSub ~= nil then
                     shallowPropagate(subs)
@@ -306,7 +309,7 @@ local function checkDirty(link, sub)
                 link = firstSub
             end
             if dirty then
-                if update(sub) then
+                if SystemUpdate(sub) then
                     if hasMultipleSubs then
                         shallowPropagate(firstSub)
                     end
@@ -333,21 +336,9 @@ end
 ---创建响应式系统
 ---@param config {update: (fun(sub: ReactiveNode): boolean), notify: fun(sub: ReactiveNode), unwatched: fun(sub: ReactiveNode)}
 local function createReactiveSystem(config)
-    local update = config.update
-    local notify = config.notify
-    local unwatched = config.unwatched
-    if systemConfig == nil then
-        systemConfig = {
-            update = update,
-            notify = notify,
-            unwatched = unwatched,
-        }
-    end
-    systemConfig = {
-        update = update,
-        notify = notify,
-        unwatched = unwatched,
-    }
+    SystemUpdate = config.update
+    SystemNotify = config.notify
+    SystemUnwatched = config.unwatched
 end
 
 return {
