@@ -103,9 +103,6 @@ local function link(dep, sub)
     end
 
     local prevSub = dep.subsTail
-    if prevSub ~= nil and prevSub.sub == sub and (recursedCheck == 0 or isValidLink(prevSub, sub)) then
-        return
-    end
 
     ---@type Link
     local newLink = {
