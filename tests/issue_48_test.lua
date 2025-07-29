@@ -82,8 +82,10 @@ local function reaction(dataFn, effectFn, options)
 
                 if once then
                     if fireImmediately and version > 1 then
+                        ---@diagnostic disable-next-line: need-check-nil
                         dispose()
                     elseif not fireImmediately and version > 0 then
+                        ---@diagnostic disable-next-line: need-check-nil
                         dispose()
                     end
                 end

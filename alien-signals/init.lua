@@ -41,7 +41,9 @@ local activeSub = nil ---@type ReactiveNode?
 local activeScope = nil ---@type EffectScope?
 
 -- 前向声明
+---@type (fun(c: Computed): boolean), (fun(s: Signal, value: any): boolean), (fun(e: Effect | EffectScope, flags: ReactiveFlags)), (fun())
 local updateComputed, updateSignal, run, flush
+---@type (fun(self: Computed): any), (fun(self: Signal, newValue: any): any?), (fun(self: Effect | EffectScope))
 local computedOper, signalOper, effectOper
 
 ---通知函数
@@ -66,8 +68,10 @@ createReactiveSystem({
     ---@return boolean
     update = function(signal)
         if signal.getter then
+            ---@cast signal Computed
             return updateComputed(signal)
         else
+            ---@cast signal Signal
             return updateSignal(signal, signal.value)
         end
     end,
